@@ -421,6 +421,27 @@
     </section>
 </main>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+  import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCjGadjeasQN1uqjorxx1SCmYCCvMtdFF4",
+    authDomain: "bockenheim-open.firebaseapp.com",
+    databaseURL: "https://bockenheim-open-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "bockenheim-open",
+    storageBucket: "bockenheim-open.firebasestorage.app",
+    messagingSenderId: "609147834146",
+    appId: "1:609147834146:web:94d2caf366c905d390df7b",
+    measurementId: "G-JSCJDYW674"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  getAnalytics(app);
+</script>
+
 <script>
     const tourConfig = {
         stops: [
