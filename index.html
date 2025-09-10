@@ -421,7 +421,16 @@
     </section>
 </main>
 
-<script>
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+    const firebaseConfig = {
+        // TODO: replace with your Firebase project configuration
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
     const tourConfig = {
         stops: [
             { name: "Start: Basaltstraße 39", lat: 50.1259278, lon: 8.6441328, drink: "Long-Drink", par: 4, address: "Basaltstraße 39" },
@@ -448,8 +457,21 @@
     let scores = {};
     let mapMarkers = [];
     let currentStopIndex = -1;
-    const storageKey = 'bockenheimOpenScores';
-    const stopStorageKey = 'bockenheimOpenCurrentStop';
+
+    onValue(ref(db, 'scores'), snapshot => {
+        scores = snapshot.val() || {};
+        tourConfig.teams.forEach(team => {
+            if (!scores[team]) {
+                scores[team] = { holes: Array(tourConfig.stops.length).fill(0), penalty: 0 };
+            }
+        });
+        updateLeaderboardView();
+    });
+
+    onValue(ref(db, 'currentStop'), snapshot => {
+        currentStopIndex = snapshot.val() ?? 0;
+        updateCurrentStopView(true);
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
         initCountdown();
@@ -458,22 +480,6 @@
         initStopsList();
         initLeaderboard();
         initAdminPanel();
-        loadScores();
-        
-        const storedIndex = localStorage.getItem(stopStorageKey);
-        if (storedIndex !== null) {
-            currentStopIndex = parseInt(storedIndex, 10);
-            updateCurrentStopView(false); 
-        }
-
-        setInterval(() => {
-            const updatedIndex = localStorage.getItem(stopStorageKey);
-            if (updatedIndex !== null && parseInt(updatedIndex, 10) !== currentStopIndex) {
-                currentStopIndex = parseInt(updatedIndex, 10);
-                updateCurrentStopView(true); 
-            }
-            loadScores(); // Scores auch regelmäßig laden
-        }, 2500); 
     });
 
     function initCountdown() {
@@ -668,20 +674,7 @@
     }
 
     function saveScores() {
-        localStorage.setItem(storageKey, JSON.stringify(scores));
-    }
-
-    function loadScores() {
-        const storedScores = localStorage.getItem(storageKey);
-        if (storedScores) {
-            scores = JSON.parse(storedScores);
-            tourConfig.teams.forEach(team => {
-                if (!scores[team]) {
-                    scores[team] = { holes: Array(tourConfig.stops.length).fill(0), penalty: 0 };
-                }
-            });
-        }
-        updateLeaderboardView();
+        set(ref(db, 'scores'), scores);
     }
 
     window.unlockAdmin = function() {
@@ -699,28 +692,24 @@
 
         if (selectedTeam && !isNaN(selectedHole) && !isNaN(scoreValue) && scoreValue >= 0) {
             scores[selectedTeam].holes[selectedHole] = scoreValue;
-            updateLeaderboardView();
             saveScores();
             scoreInput.value = '';
         } else { alert('Bitte eine gültige Zahl für die Schlücke eintragen.'); }
     }
-    
+
     window.applyPenalty = function() {
         const selectedTeam = document.getElementById("penalty-team-select").value;
         const penaltyValue = parseInt(document.getElementById("penalty-select").value);
         if (selectedTeam && !isNaN(penaltyValue)) {
             scores[selectedTeam].penalty += penaltyValue;
-            updateLeaderboardView();
             saveScores();
         }
     }
 
     window.setCurrentStop = function() {
-        const selectedStopIndex = document.getElementById('current-stop-select').value;
-        localStorage.setItem(stopStorageKey, selectedStopIndex);
-        if (parseInt(selectedStopIndex, 10) !== currentStopIndex) {
-             currentStopIndex = parseInt(selectedStopIndex, 10);
-             updateCurrentStopView(true);
+        const selectedStopIndex = parseInt(document.getElementById('current-stop-select').value, 10);
+        if (!isNaN(selectedStopIndex)) {
+            set(ref(db, 'currentStop'), selectedStopIndex);
         }
     }
 
@@ -749,11 +738,8 @@
     }
 
     window.executeFullReset = function() {
-        // Clear local storage
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(stopStorageKey);
-
-        // Reload the page to reset the state completely
+        set(ref(db, 'scores'), {});
+        set(ref(db, 'currentStop'), 0);
         window.location.reload();
     }
 </script>
