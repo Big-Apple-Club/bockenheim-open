@@ -421,7 +421,16 @@
     </section>
 </main>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+    const firebaseConfig = {
+        // TODO: Add your Firebase configuration here
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
     const tourConfig = {
         stops: [
             { name: "Start: Basaltstraße 39", lat: 50.1259278, lon: 8.6441328, drink: "Long-Drink", par: 4, address: "Basaltstraße 39" },
@@ -448,8 +457,6 @@
     let scores = {};
     let mapMarkers = [];
     let currentStopIndex = -1;
-    const storageKey = 'bockenheimOpenScores';
-    const stopStorageKey = 'bockenheimOpenCurrentStop';
 
     document.addEventListener('DOMContentLoaded', () => {
         initCountdown();
@@ -459,21 +466,17 @@
         initLeaderboard();
         initAdminPanel();
         loadScores();
-        
-        const storedIndex = localStorage.getItem(stopStorageKey);
-        if (storedIndex !== null) {
-            currentStopIndex = parseInt(storedIndex, 10);
-            updateCurrentStopView(false); 
-        }
+        loadStopFromStorage();
 
-        setInterval(() => {
-            const updatedIndex = localStorage.getItem(stopStorageKey);
+        setInterval(async () => {
+            const snapshot = await get(ref(db, 'currentStop'));
+            const updatedIndex = snapshot.val();
             if (updatedIndex !== null && parseInt(updatedIndex, 10) !== currentStopIndex) {
                 currentStopIndex = parseInt(updatedIndex, 10);
-                updateCurrentStopView(true); 
+                updateCurrentStopView(true);
             }
-            loadScores(); // Scores auch regelmäßig laden
-        }, 2500); 
+            await loadScores(); // Scores auch regelmäßig laden
+        }, 2500);
     });
 
     function initCountdown() {
@@ -668,20 +671,35 @@
     }
 
     function saveScores() {
-        localStorage.setItem(storageKey, JSON.stringify(scores));
+        set(ref(db, 'scores'), scores);
     }
 
-    function loadScores() {
-        const storedScores = localStorage.getItem(storageKey);
-        if (storedScores) {
-            scores = JSON.parse(storedScores);
-            tourConfig.teams.forEach(team => {
-                if (!scores[team]) {
-                    scores[team] = { holes: Array(tourConfig.stops.length).fill(0), penalty: 0 };
-                }
-            });
+    async function loadScores() {
+        try {
+            const snapshot = await get(ref(db, 'scores'));
+            const data = snapshot.val();
+            scores = data || {};
+        } catch (error) {
+            console.error('Fehler beim Laden der Scores:', error);
+            scores = {};
         }
+        tourConfig.teams.forEach(team => {
+            if (!scores[team]) {
+                scores[team] = { holes: Array(tourConfig.stops.length).fill(0), penalty: 0 };
+            }
+        });
         updateLeaderboardView();
+    }
+
+    async function loadStopFromStorage() {
+        try {
+            const snapshot = await get(ref(db, 'currentStop'));
+            currentStopIndex = snapshot.val() ?? 0;
+            updateCurrentStopView(false);
+        } catch (error) {
+            console.error('Fehler beim Laden des aktuellen Stops:', error);
+            currentStopIndex = 0;
+        }
     }
 
     window.unlockAdmin = function() {
@@ -717,7 +735,7 @@
 
     window.setCurrentStop = function() {
         const selectedStopIndex = document.getElementById('current-stop-select').value;
-        localStorage.setItem(stopStorageKey, selectedStopIndex);
+        set(ref(db, 'currentStop'), parseInt(selectedStopIndex, 10));
         if (parseInt(selectedStopIndex, 10) !== currentStopIndex) {
              currentStopIndex = parseInt(selectedStopIndex, 10);
              updateCurrentStopView(true);
@@ -749,11 +767,8 @@
     }
 
     window.executeFullReset = function() {
-        // Clear local storage
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(stopStorageKey);
-
-        // Reload the page to reset the state completely
+        set(ref(db, 'scores'), null);
+        set(ref(db, 'currentStop'), 0);
         window.location.reload();
     }
 </script>
