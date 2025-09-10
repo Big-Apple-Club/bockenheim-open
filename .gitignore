@@ -1,4 +1,0 @@
-node_modules
-.firebase
-.firebaserc       # (optional; kann auch im Repo bleiben)
-firebase-debug.log
